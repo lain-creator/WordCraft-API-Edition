@@ -52,7 +52,7 @@ python3 scripts/package.py --platform macos-arm64 --binary wordcraft/target/rele
 python3 scripts/package.py --platform win64 --binary wordcraft/target/x86_64-pc-windows-msvc/release/wordcraft.exe --version 0.11.0-api.20261028.1 --output dist
 ```
 
-GitHub Actions 的 `release.yml` 在 `v*-api.*` 标签推送后原生构建 Mac arm64 / Win64；两平台成功后发布 WordCraft 安装包、仅本项目源码和 SHA256。手动运行只构建，不创建 Release；不会删除旧发布。
+GitHub Actions 的 `release.yml` 在 `v*-api.*` 标签推送后构建 Mac arm64 / Win64；两平台成功后发布 WordCraft 安装包、仅本项目源码和 SHA256。Mac 使用 macOS 15 Intel runner 的 Xcode SDK 交叉编译 arm64，避免 macOS 14 arm64 的排队/退役问题。手动运行默认只构建；填写已有 `release_tag` 可重新构建并发布该标签，不改写标签、不会删除或覆盖旧发布。
 
 ## 许可
 
