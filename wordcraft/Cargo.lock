@@ -6575,6 +6575,7 @@ dependencies = [
  "pollster 0.4.0",
  "regex",
  "rfd",
+ "serde",
  "serde_json",
  "tempfile",
  "url",

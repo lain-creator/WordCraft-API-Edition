@@ -22,6 +22,7 @@ mod file_dialogs;
 #[cfg(any(target_os = "windows", target_os = "macos", test))]
 mod graphics;
 mod logging;
+mod pcb_glossary;
 mod print;
 mod region;
 #[cfg(target_os = "macos")]
@@ -248,6 +249,14 @@ fn services(file_dialog: file_dialogs::Hook, ctx: &egui::Context) -> Services {
     Services {
         #[cfg(any(target_os = "macos", target_os = "windows"))]
         translate_document: Some(std::sync::Arc::new(ai_translation::translate)),
+        api_glossary: Some(Box::new(pcb_glossary::manage)),
+        pick_glossary: Some(Box::new(|| {
+            rfd::FileDialog::new()
+                .set_title("导入 PCB 术语库 JSON")
+                .add_filter("术语库 JSON", &["json"])
+                .pick_file()
+                .map(|p| p.to_string_lossy().into_owned())
+        })),
         api_complete: Some(std::sync::Arc::new(ai_api::complete)),
         api_save_settings: Some(Box::new(ai_api::save_settings)),
         #[cfg(any(target_os = "macos", target_os = "windows"))]

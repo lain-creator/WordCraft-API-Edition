@@ -1,5 +1,7 @@
 # WordCraft roadmap
 
+> **Local API edition update: 2026-10-28** · Local user-imported PCB terminology is matched by longest phrases and prioritized in translation requests; known lamination/press-fit errors and unsupported attachment claims are rejected. Personal glossaries are not published or bundled. Overall parity estimates unchanged.
+
 > **Local API edition update: 2026-10-27** · User-configured translation replaces the fixed website: editable endpoint/model/protocol and OS credential storage, retaining exact-selection, font and image fixes. Synthetic transport and selection/DOCX checks; no change in overall parity estimate. See [local API guide](docs/local-api-assistant.md).
 
 > **Highlight update:** 2026-10-25 · Highlight shortcut toggles the last chosen colour off when the whole selection has it; explicit colour commands remain setters (#4085). Readiness estimates unchanged.

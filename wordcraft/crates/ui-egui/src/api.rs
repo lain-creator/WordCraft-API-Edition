@@ -96,12 +96,33 @@ pub struct Message {
 }
 pub type Completion = Arc<dyn Fn(Profile, Vec<Message>, &AtomicBool) -> Result<String, String> + Send + Sync>;
 pub type SaveSettings = Box<dyn Fn(&Settings) -> Result<(), String>>;
+pub type ManageGlossary = Box<dyn Fn(Option<&str>) -> Result<GlossaryInfo, String>>;
+#[derive(Clone, Default, Debug, Serialize)]
+pub struct GlossaryInfo {
+    pub entries: usize,
+    pub quarantined: usize,
+    pub ambiguous: usize,
+    pub source: String,
+}
+impl GlossaryInfo {
+    fn label(&self) -> String {
+        if self.entries == 0 {
+            "未导入本机 PCB 词库.".into()
+        } else {
+            format!(
+                "已导入 {} 条; {} 条待核对不参与匹配, {} 组多义词按上下文判断. 来源: {}",
+                self.entries, self.quarantined, self.ambiguous, self.source
+            )
+        }
+    }
+}
 
 #[derive(Default)]
 pub struct State {
     pub settings: Settings,
     pub open: bool,
     pub feedback: String,
+    pub glossary_status: String,
     job: Option<TestJob>,
 }
 struct TestJob {
@@ -114,15 +135,31 @@ impl Drop for TestJob {
     }
 }
 impl crate::WordApp {
-    pub(crate) fn api_command(&mut self, id: &str) -> Option<Result<serde_json::Value, String>> {
+    pub(crate) fn api_command(&mut self, id: &str, params: &serde_json::Value) -> Option<Result<serde_json::Value, String>> {
         match id {
             "ui.api.settings" => {
+                let _ = self.manage_api_glossary(&serde_json::json!({}));
                 self.api.open = true;
                 Some(Ok(serde_json::json!({"open":true})))
             }
+            "ui.api.glossary" => Some(self.manage_api_glossary(params)),
             "ui.api.status" => Some(serde_json::to_value(&self.api.settings).map_err(|_| "无法读取 API 设置.".into())),
             _ => None,
         }
+    }
+    fn manage_api_glossary(&mut self, params: &serde_json::Value) -> Result<serde_json::Value, String> {
+        let result = (|| {
+            let path = match params.get("path") {
+                Some(value) => Some(value.as_str().filter(|s| !s.trim().is_empty() && s.len() <= 4096).ok_or("请提供有效的 JSON 词库路径.")?),
+                None => None,
+            };
+            self.services.api_glossary.as_ref().ok_or("当前环境不支持本机词库.")?(path)
+        })();
+        self.api.glossary_status = match &result {
+            Ok(info) => info.label(),
+            Err(e) => e.clone(),
+        };
+        result.and_then(|v| serde_json::to_value(v).map_err(|e| e.to_string()))
     }
     pub fn api_window(&mut self, ctx: &egui::Context) {
         if self.api.job.as_ref().is_some_and(|j| j.worker.as_ref().is_some_and(|w| w.is_finished()))
@@ -138,7 +175,8 @@ impl crate::WordApp {
             return;
         }
         let mut open = true;
-        egui::Window::new("第三方 API 设置").open(&mut open).default_width(560.0).resizable(true).show(ctx, |ui| {
+        let mut glossary_action = None;
+        egui::Window::new("第三方 API 设置").open(&mut open).default_width(560.0).resizable(true).vscroll(true).show(ctx, |ui| {
             let settings = &mut self.api.settings;
             egui::ComboBox::from_label("服务商").selected_text(settings.selected().map(|p| p.name.as_str()).unwrap_or("选择服务商")).show_ui(
                 ui,
@@ -186,6 +224,20 @@ impl crate::WordApp {
             });
             ui.small("翻译使用当前服务商.MiniMax 国内账号可改为 https://api.minimaxi.com/v1.预设模型不保证账户权限.");
             ui.small("仅点击翻译才发送候选文字;保留原文,生成独立译文副本.连接测试可能产生少量 API 费用,不发送文档.");
+            ui.separator();
+            ui.label("PCB 专业术语库 (本机)");
+            ui.label(&self.api.glossary_status);
+            ui.small("翻译优先参考命中词条; 仅将命中词条随选区发送到当前 API, 不连接原词库网站, 不改动原文档或密钥.");
+            ui.horizontal(|ui| {
+                if ui.button("导入词库 JSON…").clicked()
+                    && let Some(path) = self.services.pick_glossary.as_ref().and_then(|pick| pick())
+                {
+                    glossary_action = Some(serde_json::json!({"path":path}));
+                }
+                if ui.button("刷新词库状态").clicked() {
+                    glossary_action = Some(serde_json::json!({}));
+                }
+            });
             ui.horizontal(|ui| {
                 if ui.button("保存设置").clicked() {
                     self.api.feedback = match &self.services.api_save_settings {
@@ -218,6 +270,9 @@ impl crate::WordApp {
             ui.label(&self.api.feedback);
         });
         self.api.open = open;
+        if let Some(params) = glossary_action {
+            let _ = self.execute("ui.api.glossary", params);
+        }
     }
 }
 fn finish_test(mut job: TestJob) -> String {
@@ -231,6 +286,19 @@ fn finish_test(mut job: TestJob) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn glossary_status_and_import_are_local_commands_without_dialogs() {
+        let mut app = crate::WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), crate::Services::default());
+        app.services.api_glossary =
+            Some(Box::new(|_| Ok(GlossaryInfo { entries: 733, quarantined: 1, ambiguous: 40, source: "synthetic.json".into() })));
+        app.services.pick_glossary = Some(Box::new(|| panic!("programmatic command must not show a picker")));
+        app.services.api_complete = Some(Arc::new(|_, _, _| panic!("import must not send document data")));
+        assert_eq!(app.execute("ui.api.glossary", serde_json::json!({})).unwrap()["entries"], 733);
+        assert!(app.execute("ui.api.glossary", serde_json::json!({"path":"synthetic.json"})).is_ok());
+        assert!(app.execute("ui.api.glossary", serde_json::json!({"path":0})).is_err());
+        app.execute("ui.api.settings", serde_json::json!({})).unwrap();
+        assert!(app.api.glossary_status.contains("733"));
+    }
     #[test]
     fn keys_are_never_serialized_and_settings_open_does_not_send() {
         let mut app = crate::WordApp::new(wordcraft_engine::Session::new(wordcraft_doc::Document::new()), crate::Services::default());

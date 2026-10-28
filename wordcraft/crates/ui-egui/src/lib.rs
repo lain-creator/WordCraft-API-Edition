@@ -103,6 +103,8 @@ pub use file_dialogs::{FileDialogAnswer, FileDialogRequest, open_filters};
 pub struct Services {
     pub api_complete: Option<api::Completion>,
     pub api_save_settings: Option<api::SaveSettings>,
+    pub api_glossary: Option<api::ManageGlossary>,
+    pub pick_glossary: Option<Box<dyn Fn() -> Option<String>>>,
     /// Manual, text-only translation on a desktop worker.
     pub translate_document: Option<translation::Translator>,
     /// Save and open the frozen translation in a separate window, leaving this session intact.
@@ -998,7 +1000,7 @@ impl WordApp {
     /// Run a command for a script or an agent (control channel, MCP bridge): never asks first.
     /// UI-level commands (`ui.*`) are handled here, the rest by the engine.
     pub fn execute(&mut self, id: &str, params: Value) -> Result<Value, String> {
-        if let Some(result) = self.api_command(id) {
+        if let Some(result) = self.api_command(id, &params) {
             return result;
         }
         if let Some(result) = self.translation_command(id, &params) {

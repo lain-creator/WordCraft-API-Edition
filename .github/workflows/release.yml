@@ -42,7 +42,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          version=0.11.0-api.20261028.1
+          version=0.11.0-api.20261028.2
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then version="${GITHUB_REF_NAME#v}"; fi
           python scripts/package.py --platform '${{ matrix.platform }}' --binary 'wordcraft/target/${{ matrix.target }}/release/${{ matrix.executable }}' --version "$version" --output dist
       - uses: actions/upload-artifact@v4
