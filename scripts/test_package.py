@@ -33,7 +33,7 @@ class PackageTests(unittest.TestCase):
                 self.assertFalse(any("GridCraft.exe" in name for name in names))
                 public = json.loads(zipped.read(next(name for name in names if name.endswith("/pcb-glossary-public.json"))))
                 self.assertEqual(len(public["items"]), 798)
-                self.assertEqual(public, json.loads((root / "wordcraft/assets/pcb-glossary-public.json").read_text()))
+                self.assertEqual(public, json.loads((root / "wordcraft/assets/pcb-glossary-public.json").read_bytes()))
                 self.assertFalse(any(name.endswith("/pcb-glossary.json") for name in names))
                 self.assertIn("WordCraft API Edition", zipped.read(next(name for name in names if name.endswith("/使用说明.md"))).decode())
             expected = hashlib.sha256(archive.read_bytes()).hexdigest()
