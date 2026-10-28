@@ -42,7 +42,7 @@ def package(args):
             template = (source / "packaging/macos/Info.plist.in").read_text()
             template = template.replace("@SHORT_VERSION@", "0.11.0").replace("@VERSION@", version).replace("@BUILD_SHA@", commit)
             info = plistlib.loads(template.encode())
-            info["WordCraftLocalPatch"] = "Independent API Edition; local PCB glossary support"
+            info["WordCraftLocalPatch"] = "Independent API Edition; embedded public PCB glossary 2026.10"
             (bundle / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
             (bundle / "Contents/PkgInfo").write_bytes(b"APPL????")
             shutil.copyfile(source / "assets/app-icon/wordcraft.icns", destination / "WordCraft.icns")
@@ -59,6 +59,7 @@ def package(args):
             shutil.copyfile(root / "craft-i18n" / filename, destination / ("craft-i18n-" + filename))
         shutil.copytree(root / "third-party/wordcraft-craft-libs-1774443", destination / "wordcraft-craft-libs-1774443")
         shutil.copyfile(root / "README.md", destination / "使用说明.md")
+        shutil.copyfile(source / "assets/pcb-glossary-public.json", destination / "pcb-glossary-public.json")
         for path in (source / "docs").glob("local-*.md"):
             shutil.copyfile(path, destination / path.name)
         for path in (source / "assets/fonts").glob("OFL-*.txt"):

@@ -1,6 +1,7 @@
 """Synthetic packaging checks: no app launch, API calls or user configuration."""
 
 import hashlib
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -30,6 +31,10 @@ class PackageTests(unittest.TestCase):
                     self.assertTrue(any(name.endswith("/" + required) for name in names), required)
                 self.assertFalse(any(name.endswith(("ai-api.json", "prefs.json", ".env")) for name in names))
                 self.assertFalse(any("GridCraft.exe" in name for name in names))
+                public = json.loads(zipped.read(next(name for name in names if name.endswith("/pcb-glossary-public.json"))))
+                self.assertEqual(len(public["items"]), 798)
+                self.assertEqual(public, json.loads((root / "wordcraft/assets/pcb-glossary-public.json").read_text()))
+                self.assertFalse(any(name.endswith("/pcb-glossary.json") for name in names))
                 self.assertIn("WordCraft API Edition", zipped.read(next(name for name in names if name.endswith("/使用说明.md"))).decode())
             expected = hashlib.sha256(archive.read_bytes()).hexdigest()
             self.assertEqual((output / (archive.name + ".sha256")).read_text().split()[0], expected)

@@ -1,5 +1,7 @@
 # WordCraft API Edition
 
+`0.11.0-api.20261029.1`：Mac / Win64 公开包编译内置 **798 条 PCB 公共专业词库**，新安装无需导入。本机个人补充独立保留，不写入公开包。详见 [公共词库说明](wordcraft/docs/local-public-pcb-glossary.md)。
+
 WordCraft 的独立第三方 API 定制版，基于上游 [storytold/wordcraft v0.11.0](https://github.com/storytold/wordcraft/tree/v0.11.0)，不是上游官方发行版。本仓库只发布 WordCraft，不包含 GridCraft 程序。
 
 ## 下载与安装

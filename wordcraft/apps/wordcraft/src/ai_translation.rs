@@ -502,7 +502,7 @@ mod translation_tests {
         let start = source.find("板厚").unwrap();
         input.scope =
             Scope::Selection(vec![wordcraft_engine::Selection { anchor: Pos::body(0, start), focus: Pos::body(0, start + "板厚1.6mm".len()) }]);
-        let glossary = Glossary::parse(r#"[{"en":"Board thickness","zh":"板厚"}]"#.as_bytes()).unwrap();
+        let glossary = Glossary::builtin().unwrap();
         let result = translate_with_glossary(input.clone(), profile, Progress::default(), &AtomicBool::new(false), &glossary).unwrap();
         worker.join().unwrap();
         assert_eq!(result.changed, 1);
