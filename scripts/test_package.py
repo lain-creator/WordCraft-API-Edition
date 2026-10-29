@@ -35,7 +35,8 @@ class PackageTests(unittest.TestCase):
                 if os.environ.get("CRAFT_FONTS_DIR"):
                     self.assertTrue(any(name.endswith("/craft-fonts-ATTRIBUTION.md") for name in names))
                     for license_path in (Path(os.environ["CRAFT_FONTS_DIR"]) / "fonts").glob("*/OFL.txt"):
-                        self.assertTrue(any(name.endswith("/OFL-" + license_path.parent.name + ".txt") for name in names))
+                        required = "/craft-fonts-OFL-" + license_path.parent.name + ".txt"
+                        self.assertTrue(any(name.endswith(required) for name in names), required)
                 public = json.loads(zipped.read(next(name for name in names if name.endswith("/pcb-glossary-public.json"))))
                 self.assertEqual(len(public["items"]), 798)
                 self.assertEqual(public, json.loads((root / "wordcraft/assets/pcb-glossary-public.json").read_bytes()))
@@ -46,6 +47,29 @@ class PackageTests(unittest.TestCase):
             result = subprocess.run(command, capture_output=True, text=True)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("Refusing to overwrite", result.stderr)
+
+    def test_external_inter_license_does_not_replace_bundled_inter_license(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(prefix="wordcraft-font-license-test-") as temporary:
+            temporary = Path(temporary)
+            fonts = temporary / "craft-fonts"
+            license_path = fonts / "fonts/inter/OFL.txt"
+            license_path.parent.mkdir(parents=True)
+            license_path.write_text("Synthetic external Inter license fixture", encoding="utf-8")
+            (fonts / "ATTRIBUTION.md").write_text("Synthetic font attribution", encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, str(root / "scripts/package.py"), "--platform", "win64", "--binary", __file__, "--version", "0.11.0-font-test.1", "--output", str(temporary / "dist")],
+                env={**os.environ, "CRAFT_FONTS_DIR": str(fonts), "CRAFT_FONTS_REQUIRED": "1"},
+                capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with zipfile.ZipFile(next((temporary / "dist").glob("*.zip"))) as zipped:
+                names = zipped.namelist()
+                bundled = next(name for name in names if name.endswith("/OFL-Inter.txt"))
+                external = next(name for name in names if name.endswith("/craft-fonts-OFL-inter.txt"))
+                self.assertEqual(zipped.read(bundled), (root / "wordcraft/assets/fonts/OFL-Inter.txt").read_bytes())
+                self.assertEqual(zipped.read(external), license_path.read_bytes())
+                self.assertEqual(len(names), len({name.casefold() for name in names}))
 
     def test_reject_unsafe_version(self):
         root = Path(__file__).resolve().parents[1]

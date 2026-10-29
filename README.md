@@ -1,6 +1,6 @@
 # WordCraft API Edition
 
-`0.11.0-api.20261029.2`：翻译窗口默认约 960×640，API 设置约 800×680，可拖动缩放、折叠，小屏自适应。Mac / Win64 公开包内置 **798 条 PCB 公共专业词库**；个人补充独立保留。详见 [公共词库说明](wordcraft/docs/local-public-pcb-glossary.md)。
+`0.11.0-api.20261029.3`：翻译窗口默认约 960×640，API 设置约 800×680，可拖动缩放、折叠，小屏自适应。Mac / Win64 公开包内置 **798 条 PCB 公共专业词库**；个人补充独立保留。详见 [公共词库说明](wordcraft/docs/local-public-pcb-glossary.md)。
 
 WordCraft 的独立第三方 API 定制版，基于上游 [storytold/wordcraft v0.11.0](https://github.com/storytold/wordcraft/tree/v0.11.0)，不是上游官方发行版。本仓库只发布 WordCraft，不包含 GridCraft 程序。
 

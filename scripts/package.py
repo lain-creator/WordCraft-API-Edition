@@ -42,7 +42,7 @@ def package(args):
             template = (source / "packaging/macos/Info.plist.in").read_text()
             template = template.replace("@SHORT_VERSION@", "0.11.0").replace("@VERSION@", version).replace("@BUILD_SHA@", commit)
             info = plistlib.loads(template.encode())
-            info["WordCraftLocalPatch"] = "API Edition 20261029.2; larger windows; unified directions; 798 PCB terms"
+            info["WordCraftLocalPatch"] = "API Edition 20261029.3; larger windows; unified directions; 798 PCB terms"
             (bundle / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
             (bundle / "Contents/PkgInfo").write_bytes(b"APPL????")
             shutil.copyfile(source / "assets/app-icon/wordcraft.icns", destination / "WordCraft.icns")
@@ -74,7 +74,9 @@ def package(args):
             if not licenses:
                 raise SystemExit("craft-fonts has no OFL licenses")
             for license_path in licenses:
-                shutil.copyfile(license_path, destination / ("OFL-" + license_path.parent.name + ".txt"))
+                # Do not collide with bundled OFL-Inter.txt on case-insensitive
+                # macOS/Windows filesystems: craft-fonts also has fonts/inter/.
+                shutil.copyfile(license_path, destination / ("craft-fonts-OFL-" + license_path.parent.name + ".txt"))
 
         if args.platform == "macos-arm64":
             subprocess.run(["xattr", "-cr", str(bundle)], check=True)
