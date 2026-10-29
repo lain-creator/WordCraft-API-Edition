@@ -42,7 +42,7 @@ def package(args):
             template = (source / "packaging/macos/Info.plist.in").read_text()
             template = template.replace("@SHORT_VERSION@", "0.11.0").replace("@VERSION@", version).replace("@BUILD_SHA@", commit)
             info = plistlib.loads(template.encode())
-            info["WordCraftLocalPatch"] = "Independent API Edition; embedded public PCB glossary 2026.10"
+            info["WordCraftLocalPatch"] = "API Edition 20261029.2; larger windows; unified directions; 798 PCB terms"
             (bundle / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
             (bundle / "Contents/PkgInfo").write_bytes(b"APPL????")
             shutil.copyfile(source / "assets/app-icon/wordcraft.icns", destination / "WordCraft.icns")
@@ -64,6 +64,17 @@ def package(args):
             shutil.copyfile(path, destination / path.name)
         for path in (source / "assets/fonts").glob("OFL-*.txt"):
             shutil.copyfile(path, destination / path.name)
+        fonts_dir = os.environ.get("CRAFT_FONTS_DIR")
+        if not fonts_dir and os.environ.get("CRAFT_FONTS_REQUIRED"):
+            raise SystemExit("CRAFT_FONTS_DIR is required for the release package and font licenses")
+        if fonts_dir:
+            fonts = Path(fonts_dir)
+            shutil.copyfile(fonts / "ATTRIBUTION.md", destination / "craft-fonts-ATTRIBUTION.md")
+            licenses = sorted((fonts / "fonts").glob("*/OFL.txt"))
+            if not licenses:
+                raise SystemExit("craft-fonts has no OFL licenses")
+            for license_path in licenses:
+                shutil.copyfile(license_path, destination / ("OFL-" + license_path.parent.name + ".txt"))
 
         if args.platform == "macos-arm64":
             subprocess.run(["xattr", "-cr", str(bundle)], check=True)

@@ -1,5 +1,7 @@
 # WordCraft roadmap
 
+> **API-UI.2 · 2026-10-29:** larger resizable translation/API windows, viewport constraints, unified 中译英 / 英译中 directions, independent selection/whole-file scope, backward-compatible commands. Synthetic/mock tests only; upstream parity estimates unchanged.
+
 > **Local API edition update: 2026-10-29** · 798 reviewed public PCB pairs, including user-authorized local PCB terms, are embedded in binaries and public packages. Clean installs need no imported glossary; remaining local additions stay separate and merge in memory. No change to upstream parity estimates. See [public glossary](docs/local-public-pcb-glossary.md).
 
 > **Local API edition update: 2026-10-28** · Local user-imported PCB terminology is matched by longest phrases and prioritized in translation requests; known lamination/press-fit errors and unsupported attachment claims are rejected. Personal glossaries are not published or bundled. Overall parity estimates unchanged.

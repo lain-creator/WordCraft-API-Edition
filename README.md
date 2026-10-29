@@ -1,6 +1,6 @@
 # WordCraft API Edition
 
-`0.11.0-api.20261029.1`：Mac / Win64 公开包编译内置 **798 条 PCB 公共专业词库**，新安装无需导入。本机个人补充独立保留，不写入公开包。详见 [公共词库说明](wordcraft/docs/local-public-pcb-glossary.md)。
+`0.11.0-api.20261029.2`：翻译窗口默认约 960×640，API 设置约 800×680，可拖动缩放、折叠，小屏自适应。Mac / Win64 公开包内置 **798 条 PCB 公共专业词库**；个人补充独立保留。详见 [公共词库说明](wordcraft/docs/local-public-pcb-glossary.md)。
 
 WordCraft 的独立第三方 API 定制版，基于上游 [storytold/wordcraft v0.11.0](https://github.com/storytold/wordcraft/tree/v0.11.0)，不是上游官方发行版。本仓库只发布 WordCraft，不包含 GridCraft 程序。
 
@@ -17,7 +17,7 @@ Mac 使用临时签名，未公证；Windows 未做发布者签名。Intel Mac �
 
 “开始”功能区点击“API 设置”，自行填写服务商地址、模型 ID、API Key。支持 GPT / OpenAI、MiniMax、DeepSeek、Kimi、小米 MiMo 及自定义 OpenAI 兼容接口（Chat Completions / Responses）；不保证每家厂商所有专有协议都兼容。
 
-三个翻译按钮：选区转英文、全文转英文、选区转中文。打开文件和框选不会发送内容；点击翻译才发送范围内候选文字，不发送图片或完整文档文件，生成独立 DOCX 副本。保留现有完整双语，不重复追加；模型输出仍需核对。固定网站调用已移除。
+先选择“当前选区／整个文档”，再点击“中译英／英译中”。两个方向都支持全文。打开文件、框选和切换范围不会发送内容；点击翻译才发送范围内候选文字，不发送图片或完整文档文件，生成独立 DOCX 副本。保留现有完整双语，不重复追加；模型输出仍需核对。固定网站调用已移除。
 
 API Key 默认仅本次运行使用，可选保存在 Mac 钥匙串 / Windows 凭据管理器；不写入源码、文档或普通配置。连接测试可能产生少量费用，但不发送文档。默认 HTTPS，不跟随重定向；远程 HTTP 需明确允许。详见 [API 使用说明](wordcraft/docs/local-api-assistant.md)。
 

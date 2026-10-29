@@ -38,10 +38,11 @@ pub(crate) struct State {
     visible: bool,
     status: Value,
     feedback: String,
+    whole_document: bool,
 }
 impl Default for State {
     fn default() -> Self {
-        Self { job: None, visible: false, status: json!({"state":"idle"}), feedback: String::new() }
+        Self { job: None, visible: false, status: json!({"state":"idle"}), feedback: String::new(), whole_document: false }
     }
 }
 
@@ -51,7 +52,8 @@ pub fn commands(app: &WordApp) -> Vec<Value> {
         ("ui.api.status","API 设置状态","{}; redacted settings, never includes API Key"),
         ("ui.translateSelection","翻译选中区域","{}; current selection to English; explicit send to configured API"),
         ("ui.translateDocument","翻译整个文档","{}; document to English; explicit send to configured API"),
-        ("ui.translateChinese","翻译成中文","{}; current selection to Chinese; explicit send to configured API"),
+        ("ui.translateEnglish","中译英","{scope?:selection|document}; default selection; explicit send to configured API"),
+        ("ui.translateChinese","英译中","{scope?:selection|document}; default selection; explicit send to configured API"),
         ("file.translateEnglish","Translate to English","{allowApiSend:true,scope?:selection|document}; default document"),
         ("file.translateChinese","Translate to Chinese","{allowApiSend:true,scope?:selection|document}; default selection"),
         ("file.translation.status","Translation progress","{} → {state,changedSegments?,skippedBilingual?,skippedSpecial?,targetLanguage?}"),
@@ -63,6 +65,28 @@ fn output_name(name: &str, target: Language) -> String {
     format!("{}.translated.{}.docx", stem.trim_end_matches(".translated.en").trim_end_matches(".translated.zh"), target.code())
 }
 impl WordApp {
+    pub(crate) fn translation_controls(&mut self, ui: &mut egui::Ui) {
+        ui.spacing_mut().item_spacing.y = 3.0;
+        egui::ComboBox::from_id_salt("translation_scope")
+            .width(88.0)
+            .selected_text(if self.translation.whole_document { "整个文档" } else { "当前选区" })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.translation.whole_document, false, "当前选区");
+                ui.selectable_value(&mut self.translation.whole_document, true, "整个文档");
+            });
+        for (label, command) in [("中译英", "ui.translateEnglish"), ("英译中", "ui.translateChinese")] {
+            if ui
+                .add_enabled(self.has_document(), egui::Button::new(label).min_size(egui::vec2(100.0, 22.0)))
+                .on_hover_text("仅点击方向按钮才发送所选范围;AI 检查双语完整性,优先 PCB 专业术语")
+                .clicked()
+            {
+                let scope = if self.translation.whole_document { "document" } else { "selection" };
+                if let Err(e) = self.run(command, json!({"scope":scope})) {
+                    self.status(e);
+                }
+            }
+        }
+    }
     pub(crate) fn translation_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {
         match id {
             "file.translation.status" => {
@@ -78,7 +102,12 @@ impl WordApp {
                 }
                 Some(Ok(json!({"cancelRequested":true})))
             }
-            "ui.translateSelection" | "ui.translateDocument" | "ui.translateChinese" | "file.translateEnglish" | "file.translateChinese" => {
+            "ui.translateSelection"
+            | "ui.translateDocument"
+            | "ui.translateEnglish"
+            | "ui.translateChinese"
+            | "file.translateEnglish"
+            | "file.translateChinese" => {
                 self.translation.visible = true;
                 if self.translation.job.is_some() {
                     return Some(Ok(self.translation.status.clone()));
@@ -88,7 +117,11 @@ impl WordApp {
                 }
                 let target = if id.ends_with("Chinese") { Language::Chinese } else { Language::English };
                 let scope = if id.starts_with("ui.") {
-                    if id == "ui.translateDocument" { "document" } else { "selection" }
+                    match id {
+                        "ui.translateDocument" => "document",
+                        "ui.translateSelection" => "selection",
+                        _ => p.get("scope").and_then(Value::as_str).unwrap_or("selection"),
+                    }
                 } else {
                     p.get("scope").and_then(Value::as_str).unwrap_or(if target == Language::Chinese { "selection" } else { "document" })
                 };
@@ -235,47 +268,56 @@ impl WordApp {
             return;
         }
         let mut open = true;
-        egui::Window::new("第三方 API · 中英翻译").open(&mut open).default_width(500.0).resizable(false).show(ctx, |ui| {
-            ui.label(self.api.settings.selected().map(|p| format!("服务商:{} · 模型:{}", p.name, p.model)).unwrap_or_default());
-            if ui.button("API 设置").clicked() {
-                self.api.open = true;
-            }
-            ui.small("候选文字按批发送;跳过项可能复核一次.不自动重试;不上传完整文件或图片.");
-            if let Some(job) = &self.translation.job {
-                ui.label(format!("{} → {}", job.scope, job.target.label()));
-                ui.horizontal(|ui| {
-                    ui.spinner();
-                    ui.label(job.progress.lock().map(|s| s.clone()).unwrap_or_default());
-                });
-                ui.label("只发送当前范围的候选文字;AI 检查双语完整性后补译.");
-                if ui.button("取消翻译").clicked() {
-                    job.cancel.store(true, Ordering::Relaxed);
+        egui::Window::new("第三方 API · 中英翻译")
+            .id(egui::Id::new("translation_result_v2"))
+            .open(&mut open)
+            .default_size(egui::vec2(960.0, 640.0).min(ctx.content_rect().size() - egui::vec2(40.0, 70.0)))
+            .min_size(egui::vec2(360.0, 260.0).min(ctx.content_rect().size() * 0.7))
+            .constrain_to(ctx.content_rect())
+            .resizable(true)
+            .collapsible(true)
+            .vscroll(true)
+            .show(ctx, |ui| {
+                ui.label(self.api.settings.selected().map(|p| format!("服务商:{} · 模型:{}", p.name, p.model)).unwrap_or_default());
+                if ui.button("API 设置").clicked() {
+                    self.api.open = true;
                 }
-            } else {
-                ui.label(&self.translation.feedback);
-                if let Some(path) = self.translation.status.get("path").and_then(Value::as_str) {
-                    ui.label(format!("副本:{path}"));
-                }
-                if let Some(details) = self.translation.status.get("details").and_then(Value::as_array) {
-                    ui.collapsing("查看段落处理明细", |ui| {
-                        egui::ScrollArea::vertical().max_height(260.0).show(ui, |ui| {
-                            for item in details {
-                                ui.label(format!(
-                                    "文本 {} · {}处 · {}:{}",
-                                    item["textIndex"],
-                                    item["occurrences"],
-                                    item["action"].as_str().unwrap_or(""),
-                                    item["reason"].as_str().unwrap_or("")
-                                ));
-                            }
-                        });
+                ui.small("候选文字按批发送;跳过项可能复核一次.不自动重试;不上传完整文件或图片.");
+                if let Some(job) = &self.translation.job {
+                    ui.label(format!("{} → {}", job.scope, job.target.label()));
+                    ui.horizontal(|ui| {
+                        ui.spinner();
+                        ui.label(job.progress.lock().map(|s| s.clone()).unwrap_or_default());
                     });
+                    ui.label("只发送当前范围的候选文字;AI 检查双语完整性后补译.");
+                    if ui.button("取消翻译").clicked() {
+                        job.cancel.store(true, Ordering::Relaxed);
+                    }
+                } else {
+                    ui.label(&self.translation.feedback);
+                    if let Some(path) = self.translation.status.get("path").and_then(Value::as_str) {
+                        ui.label(format!("副本:{path}"));
+                    }
+                    if let Some(details) = self.translation.status.get("details").and_then(Value::as_array) {
+                        ui.collapsing("查看段落处理明细", |ui| {
+                            egui::ScrollArea::vertical().max_height(ui.available_height().max(280.0)).show(ui, |ui| {
+                                for item in details {
+                                    ui.label(format!(
+                                        "文本 {} · {}处 · {}:{}",
+                                        item["textIndex"],
+                                        item["occurrences"],
+                                        item["action"].as_str().unwrap_or(""),
+                                        item["reason"].as_str().unwrap_or("")
+                                    ));
+                                }
+                            });
+                        });
+                    }
+                    if ui.button("关闭").clicked() {
+                        self.translation.visible = false;
+                    }
                 }
-                if ui.button("关闭").clicked() {
-                    self.translation.visible = false;
-                }
-            }
-        });
+            });
         if !open {
             self.translation.visible = false;
         }
@@ -286,6 +328,33 @@ impl WordApp {
 mod tests {
     use super::*;
     use crate::Services;
+    #[test]
+    fn large_translation_window_is_resizable_and_fits_small_screens() {
+        use egui_kittest::kittest::Queryable;
+        for width in [1440.0, 800.0] {
+            let mut app = fixture(Arc::new(|_, _, _, _| Err("No API calls expected".into())));
+            app.translation.visible = true;
+            app.translation.feedback = "合成界面检查:原文和译文保持独立,未调用 API.".into();
+            let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(width, 900.0)).build_ui_state(
+                |ui, app: &mut WordApp| {
+                    let ctx = ui.ctx().clone();
+                    app.logic(&ctx);
+                    app.ui(ui);
+                },
+                app,
+            );
+            h.run_steps(8);
+            let rect = h.get_by_label("第三方 API · 中英翻译").rect();
+            assert!(rect.width() <= width && rect.height() <= 900.0, "{rect:?}");
+            if width > 1000.0 {
+                assert!(rect.width() >= 900.0, "{rect:?}");
+                if let Ok(dir) = std::env::var("CRAFT_UI_QA_DIR") {
+                    h.render().unwrap().save(std::path::Path::new(&dir).join("wordcraft-translation.png")).unwrap();
+                }
+            }
+            assert!(h.state().translation.job.is_none());
+        }
+    }
     use wordcraft_doc::{CharProps, Document, Pos};
     fn fixture(service: Translator) -> WordApp {
         let mut session = wordcraft_engine::Session::new(Document::new());
@@ -381,11 +450,36 @@ mod tests {
     }
 
     #[test]
+    fn both_direction_buttons_respect_document_scope_without_implicit_send() {
+        use egui_kittest::kittest::Queryable;
+        for (button, target) in [("中译英", Language::English), ("英译中", Language::Chinese)] {
+            let calls = Arc::new(Mutex::new(Vec::new()));
+            let worker_calls = calls.clone();
+            let mut app = fixture(Arc::new(move |r, _, _, _| {
+                assert!(matches!(r.scope, Scope::Document));
+                worker_calls.lock().unwrap().push(r.target);
+                Ok(Translation::default())
+            }));
+            app.translation.whole_document = true;
+            let selection = app.session.sel.clone();
+            let mut h = egui_kittest::Harness::builder()
+                .with_size(egui::vec2(800.0, 600.0))
+                .build_ui_state(|ui, app: &mut WordApp| app.translation_controls(ui), app);
+            h.run_steps(3);
+            assert!(calls.lock().unwrap().is_empty());
+            h.get_by_label(button).click();
+            h.run_steps(3);
+            wait(h.state_mut());
+            assert_eq!(*calls.lock().unwrap(), vec![target]);
+            assert_eq!(h.state().session.sel, selection);
+        }
+    }
+    #[test]
     fn ribbon_click_keeps_the_exact_unicode_selection_in_both_directions() {
         use egui_kittest::kittest::Queryable;
         for (source, selected, button, target) in [
-            ("不应发送 中文\u{1f600}PTH孔径 后面的内容", "中文\u{1f600}PTH孔径", "翻译选中区域", Language::English),
-            ("不应发送 Board thickness 1.6mm 后面的内容", "Board thickness 1.6mm", "翻译成中文", Language::Chinese),
+            ("不应发送 中文\u{1f600}PTH孔径 后面的内容", "中文\u{1f600}PTH孔径", "中译英", Language::English),
+            ("不应发送 Board thickness 1.6mm 后面的内容", "Board thickness 1.6mm", "英译中", Language::Chinese),
         ] {
             for reversed in [false, true] {
                 let captured = Arc::new(Mutex::new(Vec::new()));

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -31,6 +32,10 @@ class PackageTests(unittest.TestCase):
                     self.assertTrue(any(name.endswith("/" + required) for name in names), required)
                 self.assertFalse(any(name.endswith(("ai-api.json", "prefs.json", ".env")) for name in names))
                 self.assertFalse(any("GridCraft.exe" in name for name in names))
+                if os.environ.get("CRAFT_FONTS_DIR"):
+                    self.assertTrue(any(name.endswith("/craft-fonts-ATTRIBUTION.md") for name in names))
+                    for license_path in (Path(os.environ["CRAFT_FONTS_DIR"]) / "fonts").glob("*/OFL.txt"):
+                        self.assertTrue(any(name.endswith("/OFL-" + license_path.parent.name + ".txt") for name in names))
                 public = json.loads(zipped.read(next(name for name in names if name.endswith("/pcb-glossary-public.json"))))
                 self.assertEqual(len(public["items"]), 798)
                 self.assertEqual(public, json.loads((root / "wordcraft/assets/pcb-glossary-public.json").read_bytes()))

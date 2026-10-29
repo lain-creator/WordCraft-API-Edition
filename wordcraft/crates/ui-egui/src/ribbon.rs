@@ -1349,18 +1349,7 @@ fn home(app: &mut WordApp, ui: &mut Ui) {
         });
         group(ui, "中英翻译", None, app, |ui, app| {
             ui.vertical(|ui| {
-                ui.spacing_mut().item_spacing.y = 3.0;
-                for (label, command, tip) in [
-                    ("翻译选中区域", "ui.translateSelection", "将选中文字翻译为英文;AI检查双语完整性后补译"),
-                    ("翻译整个文档", "ui.translateDocument", "将正文/表格/页眉页脚等翻译为英文;AI检查双语完整性后补译"),
-                    ("翻译成中文", "ui.translateChinese", "将选中文字翻译为中文;AI检查已有中文后补译"),
-                ] {
-                    if ui.add_enabled(app.has_document(), egui::Button::new(label).min_size(egui::vec2(145.0, 22.0))).on_hover_text(tip).clicked()
-                        && let Err(e) = app.run(command, json!({}))
-                    {
-                        app.status(e);
-                    }
-                }
+                app.translation_controls(ui);
             });
         });
     }
