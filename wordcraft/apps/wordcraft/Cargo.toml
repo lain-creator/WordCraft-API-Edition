@@ -63,6 +63,7 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 wl-clipboard-rs = "0.9"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+winsafe = { version = "0.0.29", default-features = false, features = ["kernel"] }
 keyring = { version = "3.6", features = ["windows-native"] }
 # The upstream default-apps button opens Windows Settings; printing uses craft-print instead.
 open = "5"

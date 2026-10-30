@@ -1,5 +1,7 @@
 # WordCraft API Edition
 
+Windows 启动修复版：`0.11.0-api.20261030.1`。缺少 windows.data.pdf.dll 不再阻止启动，仅打印时检测系统组件；文档和 AI 翻译不受影响。本版静态 CRT，无需另装 VC++ 运行库。不捆绑系统 DLL，不承诺 Windows 7/8 或所有精简系统支持。
+
 `0.11.0-api.20261029.3`：翻译窗口默认约 960×640，API 设置约 800×680，可拖动缩放、折叠，小屏自适应。Mac / Win64 公开包内置 **798 条 PCB 公共专业词库**；个人补充独立保留。详见 [公共词库说明](wordcraft/docs/local-public-pcb-glossary.md)。
 
 WordCraft 的独立第三方 API 定制版，基于上游 [storytold/wordcraft v0.11.0](https://github.com/storytold/wordcraft/tree/v0.11.0)，不是上游官方发行版。本仓库只发布 WordCraft，不包含 GridCraft 程序。
@@ -9,7 +11,7 @@ WordCraft 的独立第三方 API 定制版，基于上游 [storytold/wordcraft v
 在本仓库的 [Releases](https://github.com/lain-creator/WordCraft-API-Edition/releases) 下载：
 
 - Mac Apple 芯片：`WordCraft-…-macos-arm64.zip`，解压得到 `WordCraft.app`。
-- Windows 10/11 x64：`WordCraft-…-win64.zip`，完整解压后运行 `WordCraft.exe`；需要 [Visual C++ x64 运行库](https://aka.ms/vc14/vc_redist.x64.exe)。
+- Windows 10/11 x64：`WordCraft-…-win64.zip`，完整解压后运行 `WordCraft.exe`；本版无需另装 VC++ 运行库。
 
 Mac 使用临时签名，未公证；Windows 未做发布者签名。Intel Mac 不适用 arm64 安装包。校验下载文件请使用同一 Release 的 `SHA256SUMS.txt`。
 

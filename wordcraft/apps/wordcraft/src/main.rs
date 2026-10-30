@@ -27,6 +27,7 @@ mod print;
 mod region;
 #[cfg(target_os = "macos")]
 mod traffic_lights;
+mod windows_pdf;
 
 use wordcraft_engine::Session;
 use wordcraft_ui_egui::{

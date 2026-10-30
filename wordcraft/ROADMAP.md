@@ -1,5 +1,7 @@
 # WordCraft roadmap
 
+> **API-WIN.1 · 2026-10-30:** optional Windows PDF printing is delay-loaded with safe system-directory/export preflight; missing components return print-only errors. PE/CRT and Windows shadow-DLL startup release gates added. Target-user desktop and hardware printing unverified; readiness estimates unchanged.
+
 > **API-UI.2 · 2026-10-29:** larger resizable translation/API windows, viewport constraints, unified 中译英 / 英译中 directions, independent selection/whole-file scope, backward-compatible commands. Synthetic/mock tests only; upstream parity estimates unchanged.
 
 > **Local API edition update: 2026-10-29** · 798 reviewed public PCB pairs, including user-authorized local PCB terms, are embedded in binaries and public packages. Clean installs need no imported glossary; remaining local additions stay separate and merge in memory. No change to upstream parity estimates. See [public glossary](docs/local-public-pcb-glossary.md).

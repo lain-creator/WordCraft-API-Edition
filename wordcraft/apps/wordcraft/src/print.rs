@@ -5,7 +5,11 @@ pub fn discover() -> Discover {
     Box::new(|| {
         let (sender, receiver) = std::sync::mpsc::channel();
         let _ = std::thread::Builder::new().name("print-discovery".into()).spawn(move || {
-            let printers = craft_print::printers().into_iter().map(|printer| Printer { name: printer.name, default: printer.default }).collect();
+            let printers = crate::windows_pdf::run(|| Ok(craft_print::printers()))
+                .unwrap_or_default()
+                .into_iter()
+                .map(|printer| Printer { name: printer.name, default: printer.default })
+                .collect();
             let _ = sender.send(printers);
         });
         receiver
@@ -43,7 +47,7 @@ pub fn submit() -> Submit {
                 title: "WordCraft document".into(),
                 options,
             };
-            let _ = sender.send(craft_print::submit(&bytes, &job).map_err(|error| error.to_string()));
+            let _ = sender.send(crate::windows_pdf::run(|| craft_print::submit(&bytes, &job).map_err(|error| error.to_string())));
         });
         if let Ok(worker) = worker {
             let mut jobs = JOBS.lock().unwrap_or_else(std::sync::PoisonError::into_inner);

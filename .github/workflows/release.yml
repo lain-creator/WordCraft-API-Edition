@@ -20,13 +20,16 @@ jobs:
             target: x86_64-pc-windows-msvc
             platform: win64
             executable: wordcraft.exe
+            rustflags: '-C target-feature=+crt-static'
           # Intel runner avoids the constrained/deprecated macOS 14 arm64 pool.
           # Xcode links the unchanged aarch64 target using the macOS SDK.
           - os: macos-15-intel
             target: aarch64-apple-darwin
             platform: macos-arm64
             executable: wordcraft
+            rustflags: ''
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     env:
       PYTHONUTF8: '1'
       CRAFT_I18N_DIR: ${{ github.workspace }}/craft-i18n
@@ -57,13 +60,21 @@ jobs:
         run: cargo build --locked --release -p wordcraft --target ${{ matrix.target }}
         env:
           WORDCRAFT_REQUIRE_WINRES: '1'
+          RUSTFLAGS: ${{ matrix.rustflags }}
+      - name: Windows optional printing regression tests
+        if: matrix.platform == 'win64'
+        working-directory: wordcraft
+        run: cargo test --locked -p wordcraft --bin wordcraft --target ${{ matrix.target }} windows_pdf::tests
+      - name: Verify Windows startup without a usable local PDF DLL
+        if: matrix.platform == 'win64'
+        run: python scripts/check_optional_pdf.py wordcraft/target/${{ matrix.target }}/release/wordcraft.exe --smoke
       - name: Package
         shell: bash
         env:
           REQUESTED_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          version=0.11.0-api.20261029.3
+          version=0.11.0-api.20261030.1
           if [[ "$GITHUB_REF" == refs/tags/* ]]; then version="${GITHUB_REF_NAME#v}"; fi
           if [[ -n "$REQUESTED_TAG" ]]; then
             [[ "$REQUESTED_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-api\.[0-9.]+$ ]] || { echo 'Invalid existing API release tag'; exit 1; }
