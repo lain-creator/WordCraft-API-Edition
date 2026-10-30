@@ -1,5 +1,7 @@
 # WordCraft roadmap
 
+> **API-KEY.1 · 2026-10-30:** saved provider configuration loads independently of OS credentials; current-profile keys resolve lazily in background translation/connection workers. Remembered keys no longer trigger a false missing-configuration dialog; explicit errors preserve provider settings. Synthetic/mock verification; upstream parity estimates unchanged.
+
 > **API-WIN.1 · 2026-10-30:** optional Windows PDF printing is delay-loaded with safe system-directory/export preflight; missing components return print-only errors. PE/CRT and Windows shadow-DLL startup release gates added. Target-user desktop and hardware printing unverified; readiness estimates unchanged.
 
 > **API-UI.2 · 2026-10-29:** larger resizable translation/API windows, viewport constraints, unified 中译英 / 英译中 directions, independent selection/whole-file scope, backward-compatible commands. Synthetic/mock tests only; upstream parity estimates unchanged.

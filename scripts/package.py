@@ -42,7 +42,7 @@ def package(args):
             template = (source / "packaging/macos/Info.plist.in").read_text()
             template = template.replace("@SHORT_VERSION@", "0.11.0").replace("@VERSION@", version).replace("@BUILD_SHA@", commit)
             info = plistlib.loads(template.encode())
-            info["WordCraftLocalPatch"] = "API Edition 20261030.1; optional Windows PDF printing; larger windows; 798 PCB terms"
+            info["WordCraftLocalPatch"] = "API Edition 20261030.2; saved API credential fix; optional Windows PDF printing; 798 PCB terms"
             (bundle / "Contents/Info.plist").write_bytes(plistlib.dumps(info))
             (bundle / "Contents/PkgInfo").write_bytes(b"APPL????")
             shutil.copyfile(source / "assets/app-icon/wordcraft.icns", destination / "WordCraft.icns")

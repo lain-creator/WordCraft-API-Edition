@@ -49,6 +49,23 @@ impl Default for Profile {
     }
 }
 impl Profile {
+    /// A remembered key is resolved by the native worker, never while drawing the UI.
+    /// Its absence from JSON/the password box does not mean the profile is unconfigured.
+    pub(crate) fn configuration_error(&self) -> Option<&'static str> {
+        if self.base_url.trim().is_empty() {
+            return Some("请在 API 设置中填写 API 地址。");
+        }
+        if self.model.trim().is_empty() {
+            return Some("请在 API 设置中填写模型 ID。");
+        }
+        let local = url::Url::parse(self.base_url.trim())
+            .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && matches!(url.host_str(), Some("localhost" | "127.0.0.1" | "[::1]" | "::1")));
+        if self.api_key.trim().is_empty() && !self.remember_key && !local {
+            return Some("当前服务商尚未填写 API Key。未勾选“记住密钥”时，重启后需要重新填写密钥。");
+        }
+        None
+    }
+
     pub fn presets() -> Vec<Self> {
         [
             ("openai", "GPT / OpenAI", "https://api.openai.com/v1", "gpt-4.1-mini"),
@@ -199,9 +216,14 @@ impl crate::WordApp {
                 ui.label("模型 ID（以服务商控制台为准,可更换）");
                 ui.text_edit_singleline(&mut p.model);
                 ui.label("API Key");
-                ui.add(egui::TextEdit::singleline(&mut p.api_key).password(true).hint_text("仅发送到上面的 API 地址"));
+                let hint =
+                    if p.remember_key { "留空使用系统保存的密钥；填写新值则替换" } else { "仅发送到上面的 API 地址" };
+                ui.add(egui::TextEdit::singleline(&mut p.api_key).password(true).hint_text(hint));
                 ui.checkbox(&mut p.remember_key, "使用系统钥匙串 / Windows 凭据管理器记住密钥");
                 ui.small("未勾选时密钥仅用于本次运行,配置文件不保存明文密钥.");
+                if p.remember_key && p.api_key.trim().is_empty() {
+                    ui.small("已启用系统保存的密钥，翻译或测试连接时读取；这里留空不代表配置丢失。若系统要求授权，请自行确认。");
+                }
                 egui::ComboBox::from_label("接口协议")
                     .selected_text(match p.protocol {
                         Protocol::ChatCompletions => "Chat Completions",
@@ -335,6 +357,32 @@ mod tests {
         app.execute("text.insert", serde_json::json!({"text":"板材","raw":true})).unwrap();
         assert!(app.execute("ui.translateDocument", serde_json::json!({})).is_err());
         assert!(app.api.open);
+        assert!(app.api.feedback.contains("API Key"));
         assert!(!called.load(std::sync::atomic::Ordering::Relaxed));
+    }
+
+    #[test]
+    fn remembered_credentials_are_not_mistaken_for_missing_configuration() {
+        let mut profile = Profile::presets().remove(1);
+        assert!(profile.configuration_error().unwrap().contains("API Key"));
+        profile.remember_key = true;
+        assert!(profile.configuration_error().is_none());
+        profile.model.clear();
+        assert!(profile.configuration_error().unwrap().contains("模型"));
+        profile.base_url.clear();
+        assert!(profile.configuration_error().unwrap().contains("地址"));
+    }
+
+    #[test]
+    fn only_exact_loopback_hosts_can_omit_an_unremembered_key() {
+        let mut profile = Profile { model: "synthetic".into(), ..Default::default() };
+        for url in ["http://localhost:8080/v1", "http://127.0.0.1:8080/v1", "http://[::1]:8080/v1", "https://localhost/v1"] {
+            profile.base_url = url.into();
+            assert!(profile.configuration_error().is_none(), "{url}");
+        }
+        for url in ["http://localhost.attacker.invalid/v1", "http://127.0.0.1.attacker.invalid/v1", "http://localhost@attacker.invalid/v1"] {
+            profile.base_url = url.into();
+            assert!(profile.configuration_error().unwrap().contains("API Key"), "{url}");
+        }
     }
 }

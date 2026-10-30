@@ -161,6 +161,22 @@ fn private_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
 }
 
 pub fn complete(profile: Profile, messages: Vec<Message>, cancel: &AtomicBool) -> Result<String, String> {
+    complete_with_key_reader(profile, messages, cancel, read_key)
+}
+
+/// Dependency-injected credential access keeps regressions off the real system keychain.
+fn complete_with_key_reader(
+    profile: Profile,
+    messages: Vec<Message>,
+    cancel: &AtomicBool,
+    read: impl FnOnce(&str) -> Result<String, String>,
+) -> Result<String, String> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err("请求已取消。".into());
+    }
+    // Reject malformed destinations before asking the OS for a credential.
+    endpoint(&profile)?;
+    let profile = resolve_credentials(profile, read)?;
     if cancel.load(Ordering::Relaxed) {
         return Err("请求已取消。".into());
     }
@@ -283,16 +299,27 @@ pub fn load_settings() -> Result<Settings, String> {
     if bytes.len() > 128 * 1024 {
         return Err("API 设置文件过大。".into());
     }
-    let mut settings: Settings = serde_json::from_slice(&bytes).map_err(|_| "API 设置无效，请重新配置。")?;
+    decode_settings(&bytes)
+}
+
+fn decode_settings(bytes: &[u8]) -> Result<Settings, String> {
+    let settings: Settings = serde_json::from_slice(bytes).map_err(|_| "API 设置无效，请重新配置。")?;
     if settings.profiles.is_empty() || settings.profiles.len() > 32 || settings.active >= settings.profiles.len() {
         return Err("API 服务商设置无效。".into());
     }
-    for p in &mut settings.profiles {
-        if p.remember_key {
-            p.api_key = read_key(&p.id)?;
+    // Do not read every profile's key on startup. A denied/locked inactive credential
+    // used to discard ALL settings and silently revert to the default provider.
+    Ok(settings)
+}
+
+fn resolve_credentials(mut profile: Profile, read: impl FnOnce(&str) -> Result<String, String>) -> Result<Profile, String> {
+    if profile.remember_key && profile.api_key.trim().is_empty() {
+        profile.api_key = read(&profile.id)?;
+        if profile.api_key.trim().is_empty() {
+            return Err("已启用“记住密钥”，但系统中没有可用的 API Key。请在 API 设置中重新填写该服务商的密钥并保存；地址和模型无需重填。".into());
         }
     }
-    Ok(settings)
+    Ok(profile)
 }
 pub fn save_settings(settings: &Settings) -> Result<(), String> {
     if !super::prefs_enabled() {
@@ -326,7 +353,7 @@ fn read_key(id: &str) -> Result<String, String> {
     match entry(id)?.get_password() {
         Ok(v) => Ok(v),
         Err(keyring::Error::NoEntry) => Ok(String::new()),
-        Err(_) => Err("无法读取已保存的 API Key，请在设置中重新填写。".into()),
+        Err(_) => Err("系统未允许读取已保存的 API Key。请确认系统密钥存储的授权提示，或在 API 设置中重新填写密钥。原地址和模型已保留。".into()),
     }
 }
 #[cfg(any(target_os = "macos", target_os = "windows"))]

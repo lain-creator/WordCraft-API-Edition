@@ -157,3 +157,84 @@ fn cancelled_and_invalid_credentials_never_connect() {
     p.api_key = "bad\nInjected: header".into();
     assert!(validate(&p).is_err());
 }
+
+#[test]
+fn loading_saved_profiles_preserves_selected_provider_without_reading_credentials() -> TestResult {
+    let mut saved = Settings { active: 1, ..Default::default() };
+    for profile in &mut saved.profiles {
+        profile.remember_key = true;
+        profile.api_key = "not-serialized".into();
+    }
+    saved.profiles[1].base_url = "https://api.minimaxi.com/v1".into();
+    saved.profiles[1].model = "saved-model".into();
+    let bytes = serde_json::to_vec(&saved)?;
+    assert!(!String::from_utf8_lossy(&bytes).contains("not-serialized"));
+    let loaded = decode_settings(&bytes)?;
+    assert_eq!(loaded.active, 1);
+    assert_eq!(loaded.selected()?.id, "minimax");
+    assert_eq!(loaded.selected()?.base_url, "https://api.minimaxi.com/v1");
+    assert_eq!(loaded.selected()?.model, "saved-model");
+    assert!(loaded.profiles.iter().all(|p| p.remember_key && p.api_key.is_empty()));
+    assert!(decode_settings(br#"{"profiles":[],"active":0}"#).is_err());
+    assert!(decode_settings(br#"{"profiles":[{}],"active":1}"#).is_err());
+    Ok(())
+}
+
+#[test]
+fn session_key_takes_precedence_and_never_reads_system_credentials() -> TestResult {
+    for remember_key in [false, true] {
+        let mut p = local_profile("https://example.invalid/v1".into());
+        p.remember_key = remember_key;
+        let resolved = resolve_credentials(p, |_| panic!("must use the entered session key"))?;
+        assert_eq!(resolved.api_key, "not-a-real-key");
+    }
+    let mut p = local_profile("http://localhost:1/v1".into());
+    p.api_key.clear();
+    assert!(resolve_credentials(p, |_| panic!("session-only profile must not read keychain"))?.api_key.is_empty());
+    Ok(())
+}
+
+#[test]
+fn remembered_key_is_resolved_only_for_requested_provider_and_sent_in_header() -> TestResult {
+    let (url, worker) = mock("200 OK", r#"{"choices":[{"finish_reason":"stop","message":{"content":"ok"}}]}"#)?;
+    let mut p = local_profile(url);
+    p.id = "minimax".into();
+    p.api_key.clear();
+    p.remember_key = true;
+    let result = complete_with_key_reader(p, message(), &AtomicBool::new(false), |id| {
+        assert_eq!(id, "minimax");
+        Ok("synthetic-saved-key".into())
+    })?;
+    assert_eq!(result, "ok");
+    let request = worker.join().map_err(|_| "server")??;
+    let (headers, body) = request.split_once("\r\n\r\n").ok_or("request body")?;
+    assert!(headers.contains("Authorization: Bearer synthetic-saved-key"));
+    assert!(!body.contains("synthetic-saved-key"));
+    assert!(!result.contains("synthetic-saved-key"));
+    Ok(())
+}
+
+#[test]
+fn missing_or_denied_saved_credentials_fail_before_network_and_preserve_settings() -> TestResult {
+    let mut p = local_profile("https://example.invalid/v1".into());
+    p.id = "minimax".into();
+    p.api_key.clear();
+    p.remember_key = true;
+    let original = serde_json::to_value(&p)?;
+    let missing = complete_with_key_reader(p.clone(), message(), &AtomicBool::new(false), |_| Ok(String::new())).unwrap_err();
+    assert!(missing.contains("重新填写") && missing.contains("地址和模型无需重填"));
+    let denied = complete_with_key_reader(p.clone(), message(), &AtomicBool::new(false), |_| Err("synthetic access denied".into())).unwrap_err();
+    assert_eq!(denied, "synthetic access denied");
+    assert_eq!(serde_json::to_value(&p)?, original);
+    Ok(())
+}
+
+#[test]
+fn cancelled_or_invalid_destination_does_not_read_saved_credentials() {
+    let mut p = local_profile("https://example.invalid/v1".into());
+    p.api_key.clear();
+    p.remember_key = true;
+    assert!(complete_with_key_reader(p.clone(), message(), &AtomicBool::new(true), |_| panic!("cancelled")).is_err());
+    p.base_url = "https://user:password@example.invalid/v1".into();
+    assert!(complete_with_key_reader(p, message(), &AtomicBool::new(false), |_| panic!("invalid destination")).is_err());
+}

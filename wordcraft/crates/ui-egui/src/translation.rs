@@ -168,14 +168,10 @@ impl WordApp {
             .unwrap_or_else(|| self.title_stem());
         let source = self.session.document_id();
         let profile = self.api.settings.selected()?.clone();
-        if profile.base_url.trim().is_empty()
-            || profile.model.trim().is_empty()
-            || (profile.api_key.trim().is_empty()
-                && !profile.base_url.starts_with("http://localhost")
-                && !profile.base_url.starts_with("http://127.0.0.1"))
-        {
+        if let Some(error) = profile.configuration_error() {
             self.api.open = true;
-            return Err("请先点击 API 设置,填写 API 地址,模型 ID 和密钥.".into());
+            self.api.feedback = error.into();
+            return Err(error.into());
         }
         let request = Request { doc: self.session.doc.clone(), scope, target };
         let cancel = Arc::new(AtomicBool::new(false));
@@ -377,6 +373,31 @@ mod tests {
         }
         app.shutdown_translation();
         panic!("worker timeout");
+    }
+    #[test]
+    fn remembered_key_reaches_translation_worker_without_reopening_settings() {
+        for failure in [false, true] {
+            let called = Arc::new(AtomicBool::new(false));
+            let worker_called = called.clone();
+            let mut app = fixture(Arc::new(move |_, profile, _, _| {
+                assert_eq!(profile.id, "minimax");
+                assert!(profile.remember_key && profile.api_key.is_empty());
+                worker_called.store(true, Ordering::Relaxed);
+                if failure { Err("saved credential unavailable; re-enter key".into()) } else { Ok(Translation::default()) }
+            }));
+            app.api.settings.active = 1;
+            app.api.settings.profiles[1].remember_key = true;
+            let saved = serde_json::to_value(&app.api.settings).unwrap();
+            app.execute("ui.translateDocument", json!({})).unwrap();
+            wait(&mut app);
+            assert!(called.load(Ordering::Relaxed));
+            assert!(!app.api.open, "saved credentials must not trigger the missing-configuration dialog");
+            assert_eq!(app.translation.status["state"], if failure { "failed" } else { "skipped" });
+            assert_eq!(serde_json::to_value(&app.api.settings).unwrap(), saved);
+            if failure {
+                assert!(app.translation.feedback.contains("re-enter key"));
+            }
+        }
     }
     #[test]
     fn snapshot_result_is_a_new_dirty_document_and_preserves_later_edits() {
